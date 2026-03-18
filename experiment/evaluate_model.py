@@ -2,7 +2,6 @@ import sys
 import itertools
 import pandas as pd
 from sklearn.base import clone
-from sklearn.experimental import enable_halving_search_cv # noqa
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score  
 from sklearn.model_selection import train_test_split
@@ -15,9 +14,14 @@ from read_file import read_file
 import pdb
 import numpy as np
 import json
+import re
 import os
+import eco2ai
+
+import sympy as sp
 import inspect
 from utils import jsonify
+from symbolic_utils import complexity, get_sympy_model
 from symbolic_utils import get_sym_model
 
 from metrics.evaluation import simplicity
@@ -35,20 +39,28 @@ def set_env_vars(n_jobs):
     os.environ['OPENBLAS_NUM_THREADS'] = n_jobs 
     os.environ['MKL_NUM_THREADS'] = n_jobs
 
-def evaluate_model(
+def evaluate_model(*, 
+    # minimal working experiment
     dataset, 
     results_path,
     random_state,
     est_name,
     est,
     model,
+    algorithm,
+
+    # Extra configurations
+    ecotracker=False,
     test=False,
-    sym_data=False,
     target_noise=0.0, 
     feature_noise=0.0, 
-    ##########
-    # valid options for eval_kwargs
-    ##########
+    use_tuned=False,
+    fit_time_limit=3600,
+
+    # valid options for eval_kwargs (may be specific for some algorithms, so they can set 
+    # and it will be overriden here)
+    sym_data=False,
+    save_pop=False,
     test_params={},
     max_train_samples=0,
     scale_x=True,
@@ -66,39 +78,38 @@ def evaluate_model(
     ##################################################
     # setup data
     ##################################################
-
+    if ("e2et" in est_name) or ('tpsr' in est_name) or ('nesymres' in est_name) \
+    or ("dso" in est_name) or ('bingo' in est_name):
+        use_dataframe = False
+    
     ##################################################
     # setup data
     ##################################################
-    features, labels, feature_names =  read_file(
+    features, labels, feature_names = read_file(
         dataset, 
         use_dataframe=use_dataframe
     )
     print('feature_names:',feature_names)
+    
     if sym_data:
         true_model = get_sym_model(dataset)
+
     # generate train/test split
     X_train, X_test, y_train, y_test = train_test_split(features, labels,
                                                     train_size=0.75,
                                                     test_size=0.25,
                                                     random_state=random_state)
 
-    # time limits
-    MAXTIME = 3600
-    if len(y_train) > 1000:
-        MAXTIME = 36000
-
-    print('max time:',MAXTIME)
-
     # if dataset is large, subsample the training set 
     if max_train_samples > 0 and len(y_train) > max_train_samples:
         print('subsampling training data from',len(X_train),
               'to',max_train_samples)
         sample_idx = np.random.choice(np.arange(len(X_train)),
-                                      size=max_train_samples)
+                                      size=max_train_samples,
+                                      replace=False)
         y_train = y_train[sample_idx]
         if isinstance(X_train, pd.DataFrame):
-            X_train = X_train.loc[sample_idx]
+            X_train = X_train.iloc[sample_idx]
         else:
             X_train = X_train[sample_idx]
 
@@ -117,14 +128,12 @@ def evaluate_model(
         X_train_scaled = X_train
         X_test_scaled = X_test
 
-
     if scale_y:
         print('scaling y')
         sc_y = StandardScaler()
         y_train_scaled = sc_y.fit_transform(y_train.reshape(-1,1)).flatten()
     else:
         y_train_scaled = y_train
-
 
     ################################################## 
     # noise
@@ -152,26 +161,90 @@ def evaluate_model(
     if test and len(test_params) != 0:
         est.set_params(**test_params)
 
+    if use_tuned:
+        try:
+            tuned = importlib.__import__('methods.'+est_name+'._params',
+                                        globals(), locals(), ['*'] )
+            est.set_params(**tuned.params)
+        except Exception as e:
+            print(f"Tried to use tuned version of algorithm {est_name}, "+
+                   "but no hyperparameter tuning step was performed on this "+
+                   "algorithm yet. run optimize_model first.")
+        est_name = 'tuned'+est_name
+
     ################################################## 
     # Fit models
     ################################################## 
+    id = '_'.join([dataset.split('/')[-1].split('.')[0],
+                      est_name,
+                      str(random_state),
+                      ])
+
+    if target_noise > 0:
+        id += '_target-noise'+str(target_noise)
+    if feature_noise > 0:
+        id += '_feature-noise'+str(feature_noise)
+
+    if ecotracker:
+        # file name should be something that will avoid parallel writing
+        tracker = eco2ai.Tracker(
+            project_name=dataset.split('/')[-1].split('.')[0], # dataset
+            experiment_description=f'{est_name} {random_state}', # ml method and random seed
+            file_name=os.path.join(results_path,id+"_eco2ai.csv"),
+            alpha_2_code='US'
+        )
+
     if not use_dataframe: 
         assert isinstance(X_train_scaled, np.ndarray)
         assert isinstance(X_test_scaled, np.ndarray)
+
     print('X_train:',type(X_train_scaled),X_train_scaled.shape)
     print('y_train:',y_train_scaled.shape)
     print('training',est)
-    t0t = time.time()
+    
+    # time limits
+    MAXTIME = fit_time_limit
+    if hasattr(est, 'max_time'):
+        est.max_time = MAXTIME
+        print('max time set:',MAXTIME)
+    elif hasattr(est, 'timeout_in_seconds'): # pysr
+        est.timeout_in_seconds = MAXTIME
+        print('max time set:',MAXTIME)
+    elif hasattr(est, 'timeout'): # gpzgd
+        est.timeout = MAXTIME
+        print('max time set:',MAXTIME)
+    elif hasattr(est, 'stop_time'): # nesymres
+        est.stop_time = MAXTIME
+        print('max time set:',MAXTIME)
+    elif hasattr(est, 'time_limit'): # afp, afp_fe, afp_ehc, eplex
+        est.time_limit = MAXTIME
+        print('max time set:',MAXTIME)
+    else:
+        print('max time not set. Program will be killed if execution takes too long')
+
+    if ecotracker:
+        tracker.start()
+
     signal.signal(signal.SIGALRM, alarm_handler)
-    signal.alarm(MAXTIME) # maximum time, defined above
+    signal.alarm(MAXTIME + 600) # maximum time with some extra juice for finishing up
+
+    t0t = time.time()
     try:
         est.fit(X_train_scaled, y_train_scaled)
     except TimeOutException:
-        print('WARNING: fitting timed out')
-
+        print("="*80)
+        print('WARNING: fitting timed out. If the program does not handle SIGALRM, then it will be killed')
+        print("="*80)
+    finally:
+        signal.alarm(0)  # Cancel the alarm
     time_time = time.time() - t0t
+    if ecotracker:
+        tracker.stop()
     print('Training time measure:', time_time)
-    
+
+    if 'geneticengine' in est_name:
+        est._is_fitted = True
+
     ##################################################
     # store results
     ##################################################
@@ -189,7 +262,9 @@ def evaluate_model(
     # get the final symbolic model as a string
     print('fitted est:',est)
 
-    if 'X' in inspect.signature(model).parameters.keys():
+    if model is None:
+        results['symbolic_model'] = "not implemented"
+    elif 'X' in inspect.signature(model).parameters.keys():
         if not isinstance(X_train_scaled, pd.DataFrame):
             X_df = pd.DataFrame(X_train_scaled, 
                                           columns=feature_names)
@@ -198,11 +273,12 @@ def evaluate_model(
         results['symbolic_model'] = model(est, X_df)
     else:
         results['symbolic_model'] = model(est)
+
     print('symbolic model:',results['symbolic_model'])
+
     ##################################################
     # scores
     ##################################################
-
     for fold, target, X in  [ 
                              ['train', y_train, X_train_scaled], 
                              ['test', y_test, X_test_scaled]
@@ -219,13 +295,93 @@ def evaluate_model(
             results[score + '_' + fold] = scorer(target, y_pred) 
     
     # simplicity
-    results['simplicity'] = simplicity(results['symbolic_model'], feature_names)
+    if results['symbolic_model'] != "not implemented":
+        results['simplicity'] = simplicity(results['symbolic_model'], feature_names)
+    else:
+        results['simplicity'] = np.nan
+
+    def sympy_complexity(est):
+        sympy_str = None
+        if model is None:
+            sympy_str = "not implemented"
+        elif 'X' in inspect.signature(model).parameters.keys():
+            if not isinstance(X_train_scaled, pd.DataFrame):
+                X_df = pd.DataFrame(X_train_scaled, 
+                                            columns=feature_names)
+            else:
+                X_df = X_train_scaled
+            sympy_str = model(est, X_df)
+        else:
+            sympy_str = model(est)
+
+        c = -1
+        try:
+            c = complexity(get_sympy_model(sympy_str, dataset))
+        except:
+            print(f"{est_name} does not have a complexity() method, and does not"
+                " generate sympy-compatible expressions. setting to -1")
+            return -1
+
+        return int(c)
+            
+    # Forcing all algorithms to use same notion of complexity
+    cplx = sympy_complexity(est)
+    results['complexity_function'] = 'sympy'
+
+    # if sympy fails we will use their methods. This should be deprecated eventually
+    if cplx == -1 and ('complexity' in dir(algorithm) and algorithm.complexity is not None): 
+        cplx = algorithm.complexity(est)
+        results['complexity_function'] = 'user_defined'
+    
+    results['model_size'] = cplx
+    results['target_noise']  = target_noise
+    results['feature_noise'] = feature_noise
+
+    ##################################################
+    # Population analysis
+    ##################################################
+    if 'get_population' in dir(algorithm) and save_pop:
+        population = algorithm.get_population(algorithm.est)
+        population = population[:np.minimum(100, len(population))]
+
+        frames = []
+        for i, p in enumerate(population):
+            frame = {
+                'dataset': dataset_name,
+                'algorithm': est_name,
+                'random_state':random_state,
+                "index" : i,
+                "model_str" : algorithm.model(p),
+                "model_size" : algorithm.complexity(p)
+            }
+            for fold, target, X in  [ 
+                ['train', y_train, X_train_scaled], 
+                ['test', y_test, X_test_scaled]
+            ]:
+                y_pred = None
+                if 'gplearn'== est_name:
+                    y_pred = np.asarray(p.execute(X.values)).reshape(-1,1)
+                else:
+                    y_pred = np.asarray(p.predict(X)).reshape(-1,1)
+                
+                if scale_y:
+                    y_pred = sc_y.inverse_transform(y_pred)
+
+                for score, scorer in [('mse',mean_squared_error),
+                    ('mae',mean_absolute_error),
+                    ('r2', r2_score)
+                ]:
+                    frame[f'{score}_{fold}'] = scorer(target, y_pred) 
+            frames.append(frame)
+
+        pd.DataFrame.from_records(frames).to_csv(
+            os.path.join(results_path,id+"_population.csv"), index=False)
 
     ##################################################
     # write to file
     ##################################################
     print('results:')
-    print(json.dumps(results,indent=4))
+    print(json.dumps(results, indent=4))
     print('---')
 
     if not os.path.exists(results_path):
@@ -236,6 +392,11 @@ def evaluate_model(
         '_'.join([dataset_name, est_name, str(random_state)])
     )
 
+    if target_noise > 0:
+        save_file += '_target-noise'+str(target_noise)
+    if feature_noise > 0:
+        save_file += '_feature-noise'+str(feature_noise)
+        
     print('save_file:',save_file)
 
     with open(save_file + '.json', 'w') as out:
@@ -256,7 +417,7 @@ if __name__ == '__main__':
         description="Evaluate a method on a dataset.", add_help=False)
     parser.add_argument('INPUT_FILE', type=str,
                         help='Data file to analyze; ensure that the '
-                        'target/label column is labeled as "class".')    
+                        'target/label column is labeled as "class".')     
     parser.add_argument('-h', '--help', action='help',
                         help='Show this help message and exit.')
     parser.add_argument('-ml', action='store', dest='ALG',default=None,type=str, 
@@ -278,11 +439,18 @@ if __name__ == '__main__':
     parser.add_argument('-feature_noise',action='store',dest='X_NOISE',
                         default=0.0, type=float, help='Gaussian noise to add'
                         'to the target')
-    parser.add_argument('-sym_data',action='store_true',  
-                       help='Use symbolic dataset settings')
-    parser.add_argument('-skip_tuning',action='store_true', dest='SKIP_TUNE', 
+    parser.add_argument('-fit_time_limit',action='store',dest='FITTIME',default=3600,
+            type=int, help='Fit time limit (seconds) e.g. 3600 (1 hour). This is the maximum time for the fit method, not the job, make sure job time lim is greater than this.')
+    parser.add_argument('--sym_data', action='store_true', dest='SYM_DATA', default=False)
+    parser.add_argument('--save_population', action='store_true', dest='SAVE_POP', default=False)
+    parser.add_argument('--ecotracker', action='store_true', dest='ECOTRACKER', default=False)
+    parser.add_argument('--scale_x', action='store_true', dest='SCALE_X', default=False) 
+    parser.add_argument('--scale_y', action='store_true', dest='SCALE_Y', default=False)
+    parser.add_argument('--skip_tuning',action='store_true', dest='SKIP_TUNE', 
                         default=False, help='Dont tune the estimator')
-
+    parser.add_argument('--tuned',action='store_true', dest='TUNED', default=False, 
+            help='Run tuned version of estimators. Only applies when ml=None')
+    
     args = parser.parse_args()
     set_env_vars(args.n_jobs)
     # import algorithm 
@@ -303,12 +471,26 @@ if __name__ == '__main__':
     if args.max_samples != 0:
         eval_kwargs['max_train_samples'] = args.max_samples
 
-    evaluate_model(args.INPUT_FILE,
-                   args.RDIR,
-                   args.RANDOM_STATE,
-                   args.ALG,
-                   algorithm.est,  
-                   algorithm.model, 
-                   test = args.TEST, 
-                   **eval_kwargs
-                  )
+    eval_kwargs['sym_data'] = args.SYM_DATA
+    eval_kwargs['save_pop'] = args.SAVE_POP
+    eval_kwargs['scale_x'] = args.SCALE_X
+    eval_kwargs['scale_y'] = args.SCALE_Y
+
+    evaluate_model(
+        dataset=args.INPUT_FILE,
+        results_path=args.RDIR,
+        random_state=args.RANDOM_STATE,
+        est_name=args.ALG,
+        est=algorithm.est,  
+        model=algorithm.model,
+        algorithm=algorithm,
+        
+        ecotracker=args.ECOTRACKER,
+        test=args.TEST,
+        target_noise=args.Y_NOISE, 
+        feature_noise=args.X_NOISE, 
+        use_tuned=args.TUNED,
+        fit_time_limit=args.FITTIME,
+        
+        **eval_kwargs
+    )

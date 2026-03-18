@@ -5,7 +5,7 @@ import json
 import types
 from os.path import dirname as d
 from os.path import abspath
-root_dir = d(d(abspath(__file__)))
+root_dir = d(abspath(__file__))
 sys.path.append(root_dir)
 print('appended',root_dir,'to sys.path')
 
@@ -77,15 +77,17 @@ def test_evaluate(ml):
     else:
         eval_kwargs = {}
     print(eval_kwargs) 
-    json_file = evaluate_model(dataset, 
-                   results_path, 
-                   random_state, 
-                   ml,
-                   algorithm.est, 
-                   algorithm.model,
-                   test=True, # testing
-                   **eval_kwargs
-                  )
+    json_file = evaluate_model(
+        dataset=dataset, # input file
+        results_path=results_path, # results directory
+        random_state=random_state, # random state seed
+        est_name=ml, # estimator name
+        est=algorithm.est, # estimator class
+        algorithm=algorithm,
+        model=algorithm.model, # method to extract the model from the estimator
+        test=True, # testing
+        **eval_kwargs
+    )
     print(json_file)
     print("hello")
 
@@ -93,6 +95,9 @@ def test_evaluate(ml):
 @pytest.mark.order(after="test_evaluate")
 def test_sympy(ml):
     """Sympy compatibility of model string"""
+    
+    algorithm = get_algorithm(ml)
+
     dataset_name = dataset.split('/')[-1][:-7]
     json_file = (results_path + '/' + dataset_name + '_' + ml + '_' 
                  + str(random_state) + '.json')
@@ -111,6 +116,9 @@ def test_sympy(ml):
     model_sym = parse_expr(raw_model, local_dict = local_dict)
     model_sym = round_floats(model_sym)
     print('sym model:',model_sym)
+
+    assert 'complexity' in dir(algorithm), \
+        f"{ml} does not implement complexity"
 
     model_complexity = complexity(model_sym)
     print('model complexity:',model_complexity)

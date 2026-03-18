@@ -1,19 +1,17 @@
-name: srbench
 channels:
   - conda-forge
+  - defaults
 dependencies:
-  - python
   - scikit-learn 
   - pandas 
+  - pyarrow
   - numpy
-  - jupyter
   - pytest
-  - matplotlib
   - sympy
-  - ipdb
-  - seaborn
   - pyyaml
   - pip 
   - pip:
-    - pmlb==1.0.1.post3
+    - git+https://github.com/EpistasisLab/pmlb
     - pytest-order
+    - eco2ai
+    - tabulate
