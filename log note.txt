@@ -1,0 +1,55 @@
+========================================
+Building: eplex
+========================================
+  15 | >>>     bash install_algorithm.sh ./${ALGORITHM} && \
+  16 | >>>     micromamba clean --all --yes
+  17 |     
+--------------------
+ERROR: failed to build: failed to solve: process "/usr/local/bin/_dockerfile_shell.sh micromamba install -n base -y -c conda-forge boost-cpp=1.74.0 &&     if test -f \"./${ALGORITHM}/environment.yml\"; then         grep -v \"^name:\" ./${ALGORITHM}/environment.yml > /tmp/alg_env.yml &&         micromamba install -n base -y -f /tmp/alg_env.yml;     fi &&     bash install_algorithm.sh ./${ALGORITHM} &&     micromamba clean --all --yes" did not complete successfully: exit code: 1
+
+========================================
+Building: operon
+========================================
+  15 | >>>     bash install_algorithm.sh ./${ALGORITHM} && \
+  16 | >>>     micromamba clean --all --yes
+  17 |     
+--------------------
+ERROR: failed to build: failed to solve: process "/usr/local/bin/_dockerfile_shell.sh micromamba install -n base -y -c conda-forge boost-cpp=1.74.0 &&     if test -f \"./${ALGORITHM}/environment.yml\"; then         grep -v \"^name:\" ./${ALGORITHM}/environment.yml > /tmp/alg_env.yml &&         micromamba install -n base -y -f /tmp/alg_env.yml;     fi &&     bash install_algorithm.sh ./${ALGORITHM} &&     micromamba clean --all --yes" did not complete successfully: exit code: 1
+
+========================================
+Building: rils-rols
+========================================
+  15 | >>>     bash install_algorithm.sh ./${ALGORITHM} && \
+  16 | >>>     micromamba clean --all --yes
+  17 |     
+--------------------
+ERROR: failed to build: failed to solve: process "/usr/local/bin/_dockerfile_shell.sh micromamba install -n base -y -c conda-forge boost-cpp=1.74.0 &&     if test -f \"./${ALGORITHM}/environment.yml\"; then         grep -v \"^name:\" ./${ALGORITHM}/environment.yml > /tmp/alg_env.yml &&         micromamba install -n base -y -f /tmp/alg_env.yml;     fi &&     bash install_algorithm.sh ./${ALGORITHM} &&     micromamba clean --all --yes" did not complete successfully: exit code: 1
+
+
+========================================
+Building: tir
+========================================
+  15 | >>>     bash install_algorithm.sh ./${ALGORITHM} && \
+  16 | >>>     micromamba clean --all --yes
+  17 |     
+--------------------
+ERROR: failed to build: failed to solve: process "/usr/local/bin/_dockerfile_shell.sh micromamba install -n base -y -c conda-forge boost-cpp=1.74.0 &&     if test -f \"./${ALGORITHM}/environment.yml\"; then         grep -v \"^name:\" ./${ALGORITHM}/environment.yml > /tmp/alg_env.yml &&         micromamba install -n base -y -f /tmp/alg_env.yml;     fi &&     bash install_algorithm.sh ./${ALGORITHM} &&     micromamba clean --all --yes" did not complete successfully: exit code: 127
+
+
+Building code:
+for ALG in algorithms/*/; do
+    SUBNAME=$(basename "$ALG")
+    if [ "$SUBNAME" == "afp" ]; then continue; fi
+    echo "========================================"
+    echo "Building: $SUBNAME"
+    echo "========================================"
+    docker build -t srbench/${SUBNAME} -f alg-Dockerfile --build-arg ALGORITHM=${SUBNAME} . 2>&1 | tail -5
+    if [ $? -ne 0 ]; then
+        echo "FAILED: $SUBNAME"
+    fi
+done
+
+
+docker build --no-cache -t srbench/tir -f alg-Dockerfile --build-arg ALGORITHM=tir . 2>&1 | tail -5
+  if [ $? -ne 0 ]; then
+        echo "FAILED: $SUBNAME"

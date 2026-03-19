@@ -17,9 +17,11 @@ echo "........................................"
 echo "Creating environment"
 echo "........................................"
 add_base_env=true
+
 if test -f "${SUBFOLDER}/environment.yml" ; then 
     echo "using ${SUBFOLDER}/environment.yml ... "
-    micromamba install -n base -y -f ${SUBFOLDER}/environment.yml
+    grep -v "^name:" ${SUBFOLDER}/environment.yml > /tmp/alg_env.yml
+    micromamba install -n base -y -f /tmp/alg_env.yml
 fi
 if test -f "${SUBFOLDER}/requirements.txt" ; then
     echo "Update alg env from requirements.txt"
