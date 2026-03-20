@@ -184,3 +184,6 @@ if __name__ == "__main__":
 
     est.fit(X, y)
     print("Archive size:", len(get_population(est)))
+
+def complexity(est):
+    return len(str(model(est)))

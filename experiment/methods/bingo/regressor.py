@@ -167,3 +167,5 @@ est = SymbolicRegressor(
     evolutionary_algorithm="AgeFitnessEA",
     clo_threshold=1.0e-5,
 )
+def complexity(est):
+    return len(str(model(est)))

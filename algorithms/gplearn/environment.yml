@@ -1,8 +1,5 @@
 channels:
   - conda-forge
-  - defaults
 dependencies:
   - python=3.11
-  - setuptools<72
   - pip
-  - scikit-learn<1.6

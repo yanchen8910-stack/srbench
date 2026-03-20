@@ -1,5 +1,6 @@
-name: rils-rols
 channels:
-  - conda-forge
+    - conda-forge
 dependencies:
-  - python==3.12
+    - python=3.10
+    - pybind11
+    - pip

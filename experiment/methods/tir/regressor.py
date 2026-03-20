@@ -2,57 +2,54 @@ import sys
 import os
 import pyTIR as tir
 from itertools import product
-#os.environ["LD_LIBRARY_PATH"] = os.environ["CONDA_PREFIX"] + "/lib"
+from sklearn.base import BaseEstimator, RegressorMixin
 
-hyper_params = [
-    {
-        'transfunctions' : ('Id,Tanh,Sin,Cos,Log,Exp,Sqrt',),
-        'ytransfunctions' : ('Id,Exp,ATan,Tan,Tanh',),
-        'exponents' : ((-5,5),),
-        'ngens' : (1000,),
-    },
-    {
-        'transfunctions' : ('Id,Tanh,Sin,Cos,Log,Exp,Sqrt',),
-        'ytransfunctions' : ('Id,Exp,ATan,Tan,Tanh',),
-        'exponents' : ((-2,2),),
-        'ngens' : (1000,),
-    },
-    {
-        'transfunctions' : ('Id,Tanh,Sin,Cos,Log,Exp,Sqrt',),
-        'ytransfunctions' : ('Id,Exp,ATan,Tan,Tanh',),
-        'exponents' : ((-5,5),)
-    },
-    {
-        'transfunctions' : ('Id,Tanh,Sin,Cos,Log,Exp,Sqrt',),
-        'ytransfunctions' : ('Id,Exp,ATan,Tan,Tanh',),
-        'exponents' : ((-2,2),)
-    },
-]
+class TIRWrapper(BaseEstimator, RegressorMixin):
+    def __init__(self, npop=1000, ngens=500, pc=0.3, pm=0.7, 
+                 exponents=(-5,5), error="R^2", alg="MOO",
+                 transfunctions='Id,Sin,Tanh,Sqrt,Log,Exp',
+                 ytransfunctions='Id', max_time=3600):
+        self.npop = npop
+        self.ngens = ngens
+        self.pc = pc
+        self.pm = pm
+        self.exponents = exponents
+        self.error = error
+        self.alg = alg
+        self.transfunctions = transfunctions
+        self.ytransfunctions = ytransfunctions
+        self.max_time = max_time
 
-# Create the pipeline for the model
-eval_kwargs = {'scale_x': False, 'scale_y': False}
-est = tir.TIRRegressor(npop=1000, ngens=500, pc=0.3, pm=0.7, exponents=(-5,5), error="R^2", alg="MOO")
+    def fit(self, X, y):
+        self._est = tir.TIRRegressor(
+            npop=self.npop, ngens=self.ngens, pc=self.pc, pm=self.pm,
+            exponents=self.exponents, error=self.error, alg=self.alg,
+            transfunctions=self.transfunctions,
+            ytransfunctions=self.ytransfunctions,
+            max_time=self.max_time
+        )
+        self._est.fit(X, y)
+        return self
 
-def pre_train(est, X, y):
-    """Adjust settings based on data before training"""
-    if X.shape[0]*X.shape[1] <= 1000:
-        est.penalty = 0.01
+    def predict(self, X):
+        return self._est.predict(X)
 
-def complexity(e):
-    return e.len
+    def get_best_solution(self):
+        return self._est.get_best_solution()
 
-def model(e, X=None):
-    new_model = e.sympy.replace("^","**")
-    if X is not None:
+est = TIRWrapper()
+
+def model(est, X=None):
+    new_model = est._est.sympy.replace("^","**")
+    if X is not None and hasattr(X, "columns"):
         for i,f in reversed(list(enumerate(X.columns))):
-            new_model = new_model.replace(f'x{i}',f)
+            new_model = new_model.replace(f"x{i}",f)
     return new_model
 
-def get_population(est):
-    pop = []
-    for i in range(min(100, len(est.front))-1,-1,-1):
-        pop.append(est.create_model_from(i))
-    return pop 
+def complexity(est):
+    return len(str(model(est)))
 
-def get_best_solution(est):
-    return est
+eval_kwargs = {
+    'scale_x': False,
+    'scale_y': False,
+}

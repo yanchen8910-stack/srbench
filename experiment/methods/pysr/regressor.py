@@ -35,7 +35,7 @@ def model(est, X=None):
 
 est = PySRRegressor(
     niterations=1_000_000_000,
-    ncyclesperiteration=2_500,
+    ncycles_per_iteration=2_500,
     population_size=100,
     populations=2,
     verbosity=0,
@@ -91,7 +91,7 @@ hyper_params = [{}]
 eval_kwargs = {
     "test_params": dict(
         niterations=3,
-        ncyclesperiteration=500,
+        ncycles_per_iteration=500,
         populations=3,
     )
 }

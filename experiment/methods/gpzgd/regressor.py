@@ -267,3 +267,6 @@ def pre_train_fn(est, X, y):
 eval_kwargs = {
     "pre_train" : pre_train_fn
 }
+
+def complexity(est):
+    return len(str(model(est)))

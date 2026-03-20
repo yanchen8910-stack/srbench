@@ -2,13 +2,15 @@ channels:
   - conda-forge
   - defaults
 dependencies:
+  - python=3.11
   - scikit-learn 
-  - pandas 
+  - pandas<3
   - pyarrow
-  - numpy
+  - numpy<2
   - pytest
   - sympy
   - pyyaml
+  - setuptools<72
   - pip 
   - pip:
     - git+https://github.com/EpistasisLab/pmlb

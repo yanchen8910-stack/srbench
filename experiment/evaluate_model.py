@@ -204,13 +204,18 @@ def evaluate_model(*,
     
     # time limits
     MAXTIME = fit_time_limit
-    if hasattr(est, 'max_time'):
+    if hasattr(est, 'maxtime'): # tir
+        est.maxtime = MAXTIME
+    elif hasattr(est, 'max_time') and not (test and 'max_time' in test_params):
         est.max_time = MAXTIME
         print('max time set:',MAXTIME)
     elif hasattr(est, 'timeout_in_seconds'): # pysr
         est.timeout_in_seconds = MAXTIME
         print('max time set:',MAXTIME)
     elif hasattr(est, 'timeout'): # gpzgd
+        est.timeout = MAXTIME
+    elif hasattr(est, 'max_time'): # geneticengine
+        est.max_time = MAXTIME
         est.timeout = MAXTIME
         print('max time set:',MAXTIME)
     elif hasattr(est, 'stop_time'): # nesymres

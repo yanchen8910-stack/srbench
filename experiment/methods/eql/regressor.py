@@ -3,18 +3,14 @@ from eql.est import EQL
 import pandas as pd
 from sklearn.model_selection import GridSearchCV
 
-
 base = EQL(n_iter=10_000)
-
 reg = (1e-4, 1e-3, 1e-2, 5e-2)
 n_layers = (1, 2)
 functions = (
     "id;mul;cos;sin;exp;square;sqrt;id;mul;cos;sin;exp;square;sqrt;log",
     "id;mul;cos;div;sqrt;cos;sin;div;mul;mul;cos;id;log",
 )
-
 hyper_params = []
-
 for r, l in zip(reg, n_layers):
     for f in functions:
         hyper_params.append({
@@ -22,21 +18,20 @@ for r, l in zip(reg, n_layers):
                 'n_layers':[l],
                 'functions':[f]
                 })
-        
-# est = GridSearchCV(estimator=base, param_grid=hyper_params, cv=2, refit=True, n_jobs=4, verbose=0)
-est = base
+
+est = GridSearchCV(estimator=base, param_grid=hyper_params, cv=2, refit=True, n_jobs=1, verbose=0)
 
 def model(est, X=None):
-    model_str = str(est.get_eqn())
-
+    model_str = str(est.best_estimator_.get_eqn())
     if isinstance(X, pd.DataFrame):
         for i,f in reversed(list(enumerate(X.columns))):
             model_str = model_str.replace(f'x{i}',f)
-
     return model_str
 
-
 eval_kwargs = {
-    'test_params': {'param_grid': {'n_iter': [10], **hyper_params[-1]}},
-    'use_dataframe':False
+    'test_params': {'param_grid': [{'n_iter': [10], **hyper_params[-1]}]},
+    'use_dataframe': False
 }
+
+def complexity(est):
+    return len(str(est.best_estimator_.get_eqn()))

@@ -12,9 +12,9 @@ e2et_model=None
 #     os.path.dirname(os.path.abspath(__file__)),
 #     "model.pt" 
 # )
-model_path = os.path.join( # model in bind folder
-    "/srbench_pretrained/",
-    "model1.pt" 
+model_path = os.path.join(
+    "/tmp/",
+    "model1.pt"
 )
 try:
     if not os.path.isfile(model_path): 
@@ -105,3 +105,6 @@ eval_kwargs = dict(
                     },
                    use_dataframe=False
                   )
+
+def complexity(est):
+    return len(str(model(est)))

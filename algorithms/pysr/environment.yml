@@ -1,5 +1,6 @@
 channels:
     - conda-forge
 dependencies:
-    - pysr==0.16
-    - python==3.11
+    - pysr>=0.19
+    - python=3.11
+    - scikit-learn<1.6

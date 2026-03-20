@@ -294,3 +294,6 @@ eval_kwargs = dict(
     test_params={'n_epochs': 2,
                  }
 )
+
+def complexity(est):
+    return est.complexity

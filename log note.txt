@@ -1,40 +1,3 @@
-========================================
-Building: eplex
-========================================
-  15 | >>>     bash install_algorithm.sh ./${ALGORITHM} && \
-  16 | >>>     micromamba clean --all --yes
-  17 |     
---------------------
-ERROR: failed to build: failed to solve: process "/usr/local/bin/_dockerfile_shell.sh micromamba install -n base -y -c conda-forge boost-cpp=1.74.0 &&     if test -f \"./${ALGORITHM}/environment.yml\"; then         grep -v \"^name:\" ./${ALGORITHM}/environment.yml > /tmp/alg_env.yml &&         micromamba install -n base -y -f /tmp/alg_env.yml;     fi &&     bash install_algorithm.sh ./${ALGORITHM} &&     micromamba clean --all --yes" did not complete successfully: exit code: 1
-
-========================================
-Building: operon
-========================================
-  15 | >>>     bash install_algorithm.sh ./${ALGORITHM} && \
-  16 | >>>     micromamba clean --all --yes
-  17 |     
---------------------
-ERROR: failed to build: failed to solve: process "/usr/local/bin/_dockerfile_shell.sh micromamba install -n base -y -c conda-forge boost-cpp=1.74.0 &&     if test -f \"./${ALGORITHM}/environment.yml\"; then         grep -v \"^name:\" ./${ALGORITHM}/environment.yml > /tmp/alg_env.yml &&         micromamba install -n base -y -f /tmp/alg_env.yml;     fi &&     bash install_algorithm.sh ./${ALGORITHM} &&     micromamba clean --all --yes" did not complete successfully: exit code: 1
-
-========================================
-Building: rils-rols
-========================================
-  15 | >>>     bash install_algorithm.sh ./${ALGORITHM} && \
-  16 | >>>     micromamba clean --all --yes
-  17 |     
---------------------
-ERROR: failed to build: failed to solve: process "/usr/local/bin/_dockerfile_shell.sh micromamba install -n base -y -c conda-forge boost-cpp=1.74.0 &&     if test -f \"./${ALGORITHM}/environment.yml\"; then         grep -v \"^name:\" ./${ALGORITHM}/environment.yml > /tmp/alg_env.yml &&         micromamba install -n base -y -f /tmp/alg_env.yml;     fi &&     bash install_algorithm.sh ./${ALGORITHM} &&     micromamba clean --all --yes" did not complete successfully: exit code: 1
-
-
-========================================
-Building: tir
-========================================
-  15 | >>>     bash install_algorithm.sh ./${ALGORITHM} && \
-  16 | >>>     micromamba clean --all --yes
-  17 |     
---------------------
-ERROR: failed to build: failed to solve: process "/usr/local/bin/_dockerfile_shell.sh micromamba install -n base -y -c conda-forge boost-cpp=1.74.0 &&     if test -f \"./${ALGORITHM}/environment.yml\"; then         grep -v \"^name:\" ./${ALGORITHM}/environment.yml > /tmp/alg_env.yml &&         micromamba install -n base -y -f /tmp/alg_env.yml;     fi &&     bash install_algorithm.sh ./${ALGORITHM} &&     micromamba clean --all --yes" did not complete successfully: exit code: 127
-
 
 Building code:
 for ALG in algorithms/*/; do
@@ -53,3 +16,38 @@ done
 docker build --no-cache -t srbench/tir -f alg-Dockerfile --build-arg ALGORITHM=tir . 2>&1 | tail -5
   if [ $? -ne 0 ]; then
         echo "FAILED: $SUBNAME"
+
+docker run --rm -it srbench/base bash
+
+NOTE:
+algorithm tir is build as pyTIR
+
+
+# Run test for afp
+docker compose run --rm \
+  -v $(pwd)/experiment/test:/test \
+  afp /opt/conda/bin/python -m pytest -v /srbench/test_algorithm.py --ml afp
+
+# Run test for all
+  for ALG in afp bingo e2et eplex eql feat ffx geneticengine gpgomea gplearn gpzgd itea operon ps-tree pysr qlattice rils-rols tir; do
+    echo "========================================"
+    echo "Testing: $ALG"
+    echo "========================================"
+    docker compose run --rm \
+        -v $(pwd)/experiment/test:/test \
+        ${ALG} /opt/conda/bin/python -m pytest -v /srbench/test_algorithm.py --ml ${ALG} 2>&1 | tail -5
+done
+
+
+Run test for all but geneticengine - that one takes over an hour to time out
+
+for ALG in afp bingo e2et eplex eql feat ffx gpgomea gplearn gpzgd itea operon ps-tree pysr qlattice rils-rols tir; do
+    echo "=== $ALG ==="
+    docker compose run --rm \
+        -v $(pwd)/experiment/test:/srbench/test \
+        ${ALG} /opt/conda/bin/python -m pytest -v /srbench/test_algorithm.py --ml ${ALG} 2>&1 | grep -E "passed|failed|error" | tail -2
+done
+
+Check image creation dates:
+bashdocker images 'srbench/*' --format "{{.Repository}}\t{{.CreatedAt}}" | sort -k2
+
