@@ -480,12 +480,16 @@ class NeSymResRegressor(BaseEstimator, RegressorMixin):
                                 beam_size=cfg.inference.beam_size #This parameter is a tradeoff between accuracy and fitting time
                                 )
 
-        weights_path = "/srbench_pretrained/nesymres_100M.ckpt"
+        weights_path = "/home/mambauser/nesymres_weights/100M.ckpt"
 
         ## Load architecture, set into eval mode, and pass the config parameters
         #cfg.architecture.num_features = eq_setting["num_variables"]
         
+        import torch as _torch
+        _orig_load = _torch.load
+        _torch.load = lambda *a, **kw: _orig_load(*a, **{**kw, "weights_only": False})
         model = Model.load_from_checkpoint(weights_path, cfg=cfg.architecture)
+        _torch.load = _orig_load
         model.eval()
 
         if torch.cuda.is_available(): 
@@ -518,3 +522,6 @@ est = NeSymResRegressor()
 
 def model(est, X=None):
     return str(est.model_eq_[0])
+
+def complexity(est):
+    return len(str(model(est)))

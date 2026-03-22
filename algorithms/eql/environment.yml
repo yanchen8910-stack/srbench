@@ -1,4 +1,3 @@
-name: eql
 channels:
     - conda-forge
 dependencies:
@@ -6,10 +5,10 @@ dependencies:
     - pip
     - numpy
     - sympy
-    - jax
     - scikit-learn
     - scipy
-    - flax
-    - optax
     - pyyaml
-    - pandas
+    - pip:
+        - jax[cpu]>=0.4.26
+        - flax
+        - optax

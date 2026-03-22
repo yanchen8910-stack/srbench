@@ -362,3 +362,5 @@ def model(est, X=None):
 
 
 #  python regressor.py
+def complexity(est):
+    return len(str(model(est)))

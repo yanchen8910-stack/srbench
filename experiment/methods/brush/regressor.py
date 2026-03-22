@@ -1,5 +1,37 @@
-from pybrush import BrushRegressor
-from pybrush import individual
+from brush import BrushRegressor
+try:
+    from brush import individual
+except ImportError:
+    individual = None
+
+from sklearn.base import BaseEstimator, RegressorMixin as _RegressorMixin
+
+class BrushWrapper(BaseEstimator, _RegressorMixin):
+    def __init__(self, pop_size=100, max_gen=250, max_depth=8, max_size=75,
+                 verbosity=0, functions=None):
+        self.pop_size = pop_size
+        self.max_gen = max_gen
+        self.max_depth = max_depth
+        self.max_size = max_size
+        self.verbosity = verbosity
+        self.functions = functions or ['Add','Sub','Mul','Div','Sin','Cos','Tanh','Exp','Log','Sqrt']
+
+    def fit(self, X, y):
+        self._est = BrushRegressor(
+            pop_size=self.pop_size,
+            max_gen=self.max_gen,
+            max_depth=self.max_depth,
+            max_size=self.max_size,
+            verbosity=self.verbosity,
+            functions=self.functions
+        )
+        self._est.fit(X, y)
+        return self
+
+    def predict(self, X):
+        return self._est.predict(X)
+
+
 from sklearn.metrics import r2_score
 from sklearn.base import BaseEstimator, RegressorMixin
 import re
@@ -20,45 +52,19 @@ hyper_params = []
 #                 })
         
 kwargs = {
-    'verbosity'       : 1,
-    'pop_size'        : 250, 
-    'max_gens'        : 250,
-    'max_depth'       : 8,  # 8
-    'max_size'        : 75, # 75
-    'initialization'  : 'uniform',
-    'validation_size' : 0.33,
-    'cx_prob'         : 1/7,
-    'weights_init'    : False,
-    'mutation_probs'  : {"point":1/6, "insert": 1/6, "delete":  1/6, "subtree": 1/6,
-                         "toggle_weight_on": 1/6, "toggle_weight_off":1/6},
-    'sel'             : 'lexicase', # tournament, e-lexicase
-    'algorithm'       : 'nsga2',
-    'objectives'      : ['scorer', 'complexity'],
-    'bandit'          : "dynamic_thompson", # "thompson", "dynamic_thompson",
-    'num_islands'     : 1,
-    'use_arch'        : True,
-    'shuffle_split'   : True, # True, False
-    # "max_stall"       : 25,
-    'functions'       : [
-        # # # arithmetic (just a subset of them)
-        "Add", "Sub", "Mul", "Div",  "Sin",  "Cos","Tanh", 
-        "Exp", "Log", "Sqrt", "Pow",
-
-        # # # logic operators
-        "And", "Or", "Not", "Xor", "Equals", "LessThan", "GreaterThan", "Leq", "Geq",
-
-        # # # split
-        "SplitBest", "SplitOn",
-
-        # # # terminals
-        "Constant", "Terminal", # "MeanLabel", 
+    'verbosity'  : 0,
+    'pop_size'   : 100,
+    'max_gen'    : 250,
+    'max_depth'  : 8,
+    'max_size'   : 75,
+    'functions'  : [
+        'Add', 'Sub', 'Mul', 'Div', 'Sin', 'Cos', 'Tanh',
+        'Exp', 'Log', 'Sqrt',
     ]
 }
 
 
-est = BrushRegressor(
-    **kwargs
-) 
+est = BrushWrapper() 
 
 
 func_dict = {
@@ -175,7 +181,9 @@ def pretify_expr(string, feature_names):
 
 def model(est, X=None):
     model_str = None
-    if isinstance(est, BrushRegressor):
+    if isinstance(est, BrushWrapper):
+        model_str = est._est.best_estimator_.get_model()
+    elif isinstance(est, BrushRegressor):
         model_str = est.best_estimator_.get_model()
     else:
         model_str = est.model()

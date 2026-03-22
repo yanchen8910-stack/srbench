@@ -1,9 +1,10 @@
 channels:
     - conda-forge
 dependencies:
+    - python=3.11
     - gmp
-    - gsl 
-    - libffi 
+    - gsl
+    - libffi
     - libgfortran-ng
-    - blas * openblas 
+    - blas * openblas
     - liblapack

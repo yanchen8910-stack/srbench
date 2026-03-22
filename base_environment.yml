@@ -2,7 +2,6 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python=3.11
   - scikit-learn 
   - pandas<3
   - pyarrow
@@ -17,3 +16,4 @@ dependencies:
     - pytest-order
     - eco2ai
     - tabulate
+    - "numpy<2"

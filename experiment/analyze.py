@@ -108,7 +108,15 @@ def detect_datasets(dataset_dir):
             print(f"Skipping non-regression dataset: {dataset}")
             continue
         
-        dataset_sizes.append(metadata["n_instances"] * metadata["n_features"])
+        # skip LFS pointer files (not yet downloaded)
+        tsv_file = dataset
+        with open(tsv_file, 'rb') as f:
+            magic = f.read(2)
+        if magic != b'\x1f\x8b':  # not a real gzip file
+            continue
+        n_features = metadata.get("n_features", len(metadata.get("features", [])))
+        n_instances = metadata.get("n_instances", 100)
+        dataset_sizes.append(n_instances * n_features)
 
     # Sort datasets by datapoints (so faster jobs get submitted first)
     return [datasets[i] for i in np.argsort(dataset_sizes)]
@@ -140,9 +148,9 @@ def run_local(commands, job_info, args):
     def _run(cmd, ml):
         docker_cmd = [
             "docker", "compose", "run", "--rm", 
-            "-v", f"{os.getcwd()}/experiment:/srbench",
-            "-v", f"{os.getcwd()}/{args.dataset_dir}:/{args.dataset_dir}",
-            "-v", f"{os.getcwd()}/{args.results_dir}:/{args.results_dir}",
+            "-v", f"{os.path.dirname(os.path.abspath(__file__))}:/srbench",
+            "-v", f"{os.path.abspath(args.dataset_dir)}:{os.path.abspath(args.dataset_dir)}",
+            "-v", f"{os.path.abspath(args.results_dir)}:/results",
             "-v", f"{args.pretrained_dir}:/srbench_pretrained",
             f"{ml.replace('tuned', '').lower()}",
             "python", "-u"

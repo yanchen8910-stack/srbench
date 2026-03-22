@@ -114,3 +114,7 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+# Local files
+log note.txt
+pmlb/

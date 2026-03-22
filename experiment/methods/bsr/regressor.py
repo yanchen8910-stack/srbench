@@ -13,11 +13,10 @@ est = BSR(
           val=100,
           itrNum=500,
           treeNum=3,
-          alpha1= 0.4, 
-          alpha2= 0.4, 
-          beta= -1, 
-          disp=False, 
-          max_time=60*60)
+          alpha1=0.4,
+          alpha2=0.4,
+          beta=-1,
+          disp=False)
 
 def complexity(est):
     return est.complexity()

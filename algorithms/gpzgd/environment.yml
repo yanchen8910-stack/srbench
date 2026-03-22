@@ -2,8 +2,8 @@ name: srcomp
 channels:
     - conda-forge
 dependencies:
-    - python
-    - scikit-learn=0.24.1 
+    - python=3.11
+    - scikit-learn 
     - pandas 
     - numpy
     - jupyter
