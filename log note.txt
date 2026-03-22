@@ -76,3 +76,42 @@ git lfs pull
 To run experiment
 cd /mnt/SSD/PhD/srbench/experiment
 python3 analyze.py ../pmlb/datasets --local -ml afp -n_jobs 1 --test
+
+
+Great work getting everything running! Here's a summary of what was accomplished:
+Docker migration complete — 22 algorithms building and running in isolated containers, driven by docker-compose.yml and analyze.py.
+New algorithms added — brush, bsr, nesymres, tpsr all working. udsr skipped due to TF1 incompatibility.
+Full pipeline working — analyze.py with --local correctly mounts volumes, detects real datasets, and runs experiments end-to-end.
+
+When you're ready to run real experiments, the command is:
+bashcd /mnt/SSD/PhD/srbench/experiment
+
+python3 analyze.py ~/pmlb/datasets --local -ml afp -n_jobs 4 -fit_time_limit 3600
+Replace -ml afp with a comma-separated list of algorithms or omit it to run all of them.
+
+=====================================================
+To run all
+Run it with:
+bashcd /mnt/SSD/PhD/srbench/experiment
+./run_all.sh
+A few things to note — --noskips means it will rerun even if results already exist, so remove that flag if you want to resume a stopped run. You can also adjust N_JOBS based on how many CPU cores you want to use, and N_TRIALS controls how many random seeds each algorithm/dataset combination is evaluated on (the paper uses 10).
+
+
+
+Add --no_docker flag — it runs commands directly without containers. You just need to create the method folder:
+bashmkdir -p experiment/methods/my_alg
+Create experiment/methods/my_alg/__init__.py (empty), experiment/methods/my_alg/_params.py (optional tuning params), and experiment/methods/my_alg/regressor.py with this structure:
+pythonfrom sklearn.base import BaseEstimator, RegressorMixin
+
+est = MyAlgorithm()  # your estimator
+
+def model(est):
+    return str(est)  # symbolic expression string
+
+def complexity(est):
+    return len(str(est))  # model size metric
+Then run:
+bashcd /mnt/SSD/PhD/srbench/experiment
+python3 analyze.py ~/pmlb/datasets/192_vineyard/192_vineyard.tsv.gz \
+    --no_docker --local -ml my_alg -n_jobs 1 -fit_time_limit 3600
+The --no_docker flag bypasses containers entirely and runs optimize_model.py directly in your local Python environment, so your algorithm just needs to be importable from experiment/methods/my_alg/regressor.py.
